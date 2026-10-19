@@ -1011,7 +1011,8 @@ const APP_CONFIG={
   validators: {                             // email -> código de validador
     'fernando@connect.lat':'FLC','raquel@connect.lat':'RH','julio@connect.lat':'JP'
   },
-  savePdfOnValidate:true                    // sube el PDF firmado a SharePoint al validar
+  savePdfOnValidate:true,                   // sube el PDF firmado a SharePoint al validar
+  admins:['fernando@connect.lat','raquel@connect.lat'] // ven todos los PA; el resto solo los propios
 };
 const GRAPH='https://graph.microsoft.com/v1.0';
 const SCOPES=['User.Read','Files.ReadWrite.All'];
@@ -2220,10 +2221,15 @@ function renderStatus(){
   if(s){$('stampName').textContent=s.name;$('stampRole').textContent=t(s.role)+' · '+s.code+(s.email?' · '+s.email:'');$('stampDate').textContent=sgWhen(s);$('stampHash').textContent=s.hash;}
   renderValidators();
 }
+/* Visibilidad: los admins ven todos los PA; los demas solo los que crearon.
+   Los registros sin creador (anteriores al campo) quedan solo para admins.
+   Es un filtro de pantalla: la carpeta de SharePoint sigue siendo la misma. */
+const isAdmin=()=>!!me&&(APP_CONFIG.admins||[]).map(x=>x.toLowerCase()).includes(me.email);
+const canSee=r=>isAdmin()||(!!me&&!!r.createdBy&&r.createdBy.toLowerCase()===me.email);
 function renderList(){
   const q=($('search').value||'').toLowerCase();
   const box=$('list');
-  const rows=records.filter(r=>!q||[r.id,r.partner,r.endCustomer,r.vendor].join(' ').toLowerCase().includes(q));
+  const rows=records.filter(canSee).filter(r=>!q||[r.id,r.partner,r.endCustomer,r.vendor].join(' ').toLowerCase().includes(q));
   if(!rows.length){box.innerHTML='<div class="empty">'+t('No hay registros')+(q?' '+t('para esa búsqueda'):'')+t('. Cree un nuevo PA con el botón superior.')+'</div>';return;}
   box.innerHTML=rows.map(r=>{const o=calc(r);return `<div class="item ${current&&r.id===current.id?'active':''}" onclick="openPA('${r.id}')">
     <div class="id"><span>${r.id}</span><span class="pill ${isLocked(r)?'ok':'draft'}">${r.status==='won'?'WON':r.status==='validated'?'OK':'draft'}</span></div>
@@ -2284,7 +2290,7 @@ function migrateGasBase(r){
   }
   r._gasOnCost=true;return r;
 }
-function openPA(id){const r=records.find(x=>x.id===id);if(!r)return;migrateGasBase(r);
+function openPA(id){const r=records.find(x=>x.id===id);if(!r||!canSee(r))return;migrateGasBase(r);
   if(r.inclTax===undefined){const c=COUNTRY[r.country];r.inclTax=+((((c&&c.destTax)||0)*100).toFixed(2));
     if(r.country==='BR'&&Math.abs((+r.localTax||0)-12)<0.01)r.localTax=0; // el 12% vive ahora en inclTax
   }
