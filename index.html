@@ -1380,7 +1380,6 @@ function lineTerm(l,fallback){if(l&&l.kind==='shipping')return 1;return spanYear
 const CEIL2=v=>Math.ceil(+(((+v||0)*100).toFixed(6)))/100;
 function calc(r){
   const lines=(r.lines||[]);const lineSum=lines.filter(l=>l.kind!=='shipping').reduce((a,l)=>a+(+l.qty||0)*(+l.cost||0),0);
-  const acvAnnual=lines.length?lineSum:(+r.vendorACV||0);
   // El termino sale de las fechas de las lineas cuando existen; el campo manual
   // solo aplica si no hay fechas de las que derivarlo.
   const rec0=lines.filter(l=>l.kind!=='shipping');
@@ -1388,6 +1387,13 @@ function calc(r){
   const de=rec0.map(l=>l.end).filter(Boolean).sort();
   const termAuto=spanYears(ds[0]||r.startDate,de[de.length-1]);
   const termReal=termAuto??Math.max(0.01,+r.term||1);
+  /* El ACV desde lineas se anualiza contra el termino del deal: cada linea
+     aporta costo x cantidad x su propio termino, y el total se divide por el
+     termino del contrato. Sumar los costos anuales de todas las lineas asumia
+     que todas cubrian el periodo completo; con lineas consecutivas (anio 1,
+     anio 2, anio 3) triplicaba el Vendor TCV y dejaba el Dest GAS negativo. */
+  const lineTCV=rec0.reduce((a,l)=>a+(+l.qty||0)*(+l.cost||0)*lineTerm(l,termReal),0);
+  const acvAnnual=lines.length?(termReal>0?lineTCV/termReal:lineSum):(+r.vendorACV||0);
   /* Cotermino (menos de un anio): no existe una version anual del deal, el
      contrato es lo que es. La cascada entera corre sobre el valor del contrato
      y ACV = TCV en todos los nodos. Anualizarlo inflaria la base de comisiones
@@ -1584,8 +1590,10 @@ function calc(r){
   // "Ajuste de redondeo": la suma de lineas cuadra exacto con el Partner TCV.
   {const rec=o.lines.filter(l=>!l.oneTime);
    if(rec.length){
-     o.partnerACV=rec.reduce((a,l)=>a+l.acv,0);
      o.partnerTCV=rec.reduce((a,l)=>a+l.tcv,0);
+     /* El ACV es el TCV anualizado: sumar los ACV de las lineas contaba varias
+        veces las lineas consecutivas (anio 1, anio 2, anio 3). */
+     o.partnerACV=o.partnerTCV/term;
      /* Desde el precio final se baja al nivel cliente quitando impuestos, y de
         ahi al nivel partner quitando la comision del canal. */
      o.subTCV=o.partnerTCV/spF; o.subACV=o.partnerACV/spF;
