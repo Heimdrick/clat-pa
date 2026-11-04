@@ -837,12 +837,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <div class="row"><label>CLAT Destination Cost TCV</label><div class="pct"></div><div class="val strong" id="o-dctcv"></div></div>
 
           <div class="row"><div class="sub-h">Routing y gas destino</div></div>
-          <div class="row"><label>Routing factor <small id="routingHint"></small></label><input class="f pct" type="number" step="0.01" data-k="routing"><div class="val" id="o-racv"></div></div>
+          <div class="row"><label>Routing factor <small id="routingHint"></small></label><input class="f pct" type="number" step="0.01" data-k="routing"><input class="f num val" id="o-racv" inputmode="decimal" title="Escriba el monto y el porcentaje se despeja"></div>
           <div class="row"><label>Routing TCV</label><div class="pct"></div><div class="val" id="o-rtcv"></div></div>
           <div class="row"><label>Dest. cost ACV after routing</label><div class="pct"></div><div class="val" id="o-aracv"></div></div>
           <div class="row"><label>Dest. cost TCV after routing</label><div class="pct"></div><div class="val" id="o-artcv"></div></div>
           <div class="row"><label>MDF <small id="mdfHint">calculado sobre Dest. cost after routing</small></label><input class="f pct" type="number" step="0.01" data-k="mdf"><input class="f num val" id="o-mdf" inputmode="decimal" title="Escriba el monto y el porcentaje se despeja"></div>
-          <div class="row"><label>CLAT Destination GAS <small id="destGasHint"></small></label><input class="f pct" type="number" step="0.01" data-k="destGas"><div class="val" id="o-dgacv"></div></div>
+          <div class="row"><label>CLAT Destination GAS <small id="destGasHint"></small></label><input class="f pct" type="number" step="0.01" data-k="destGas"><input class="f num val" id="o-dgacv" inputmode="decimal" title="Escriba el monto y el porcentaje se despeja"></div>
           <div class="row"><label>Destination GAS TCV</label><div class="pct"></div><div class="val" id="o-dgtcv"></div></div>
           <div class="row" id="rowPreTaxA" style="display:none"><label id="lblPreTaxA">Partner ACV antes de impuestos</label><div class="pct"></div><div class="val" id="o-pretaxa"></div></div>
           <div class="row" id="rowPreTaxT" style="display:none"><label id="lblPreTaxT">Partner TCV antes de impuestos</label><div class="pct"></div><div class="val strong" id="o-pretaxt"></div></div>
@@ -1789,12 +1789,14 @@ function togglePin(){
    mano cuando lo que se negocia es la plata.
      Source GAS = vendor ACV x %   ->  % = monto / vendor ACV
      MDF        = vendor TCV x %   ->  % = monto / vendor TCV                */
-function solveAmount(field,base,raw){
+/* grossUp: el porcentaje es margen sobre el precio del nodo (base + monto), no
+   sobre el costo. Aplica a los GAS. */
+function solveAmount(field,base,raw,grossUp){
   const r=current;if(isLocked(r))return;
   const n=+String(raw).replace(/[$,\s]/g,'');
   if(!isFinite(n)||n<0)return;
   if(!(base>0)){toast(t('No hay base para despejar el porcentaje'));return;}
-  r[field]=+((n/base)*100).toFixed(6);
+  r[field]=+((grossUp?n/(base+n):n/base)*100).toFixed(6);
   /* Los inputs con data-k solo se rellenan en fillForm, no en cada recalculo,
      asi que hay que escribir el porcentaje a mano o el campo queda mostrando
      el valor anterior aunque el dato ya cambio. */
@@ -1805,12 +1807,12 @@ function solveAmount(field,base,raw){
 let amountSolveBound=false;
 function bindAmountSolve(){
   if(amountSolveBound)return;amountSolveBound=true;
-  [['o-sgacv','sourceGas',o=>o.srcCostACV],['o-mdf','mdf',o=>o.arACV],
+  [['o-sgacv','sourceGas',o=>o.srcCostACV,true],['o-racv','routing',o=>o.dcACV],['o-dgacv','destGas',o=>o.dgBaseACV,true],['o-mdf','mdf',o=>o.arACV],
    ['o-finders','findersPct',o=>o.custPreTaxACV],
-   ['o-chan','channelPct',o=>o.custPreTaxACV]].forEach(([id,field,baseOf])=>{
+   ['o-chan','channelPct',o=>o.custPreTaxACV]].forEach(([id,field,baseOf,gu])=>{
     const el=$(id);if(!el)return;
     el.addEventListener('focus',()=>{el.value=el.value.replace(/[$,\s]/g,'');el.select();});
-    el.addEventListener('change',()=>solveAmount(field,baseOf(calc(current)),el.value));
+    el.addEventListener('change',()=>solveAmount(field,baseOf(calc(current)),el.value,!!gu));
     el.addEventListener('blur',()=>recalc(true));
     el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el.blur();}});
   });
@@ -1932,8 +1934,9 @@ function recalc(skipLineInputs){
    [['o-sgacv',o.sgACV],['o-mdf',o.mdfACV],['o-finders',o.findersACV],['o-chan',o.chanACV]].forEach(([id,v])=>{
      const el=$(id);if(!el)return;el.disabled=lk;
      if(document.activeElement!==el)el.value=usd(v);});}
-  set('o-dcacv',usd(o.dcACV));set('o-dctcv',usd(o.dcTCV));set('o-racv',usd(o.rACV));set('o-rtcv',usd(o.rTCV));
-  set('o-aracv',usd(o.arACV));set('o-artcv',usd(o.arTCV));set('o-dgacv',usd(o.dgACV));set('o-dgtcv',usd(o.dgTCV));
+  set('o-dcacv',usd(o.dcACV));set('o-dctcv',usd(o.dcTCV));set('o-rtcv',usd(o.rTCV));
+  set('o-aracv',usd(o.arACV));set('o-artcv',usd(o.arTCV));set('o-dgtcv',usd(o.dgTCV));
+  {const lk=isLocked(r);[['o-racv',o.rACV],['o-dgacv',o.dgACV]].forEach(([id,v])=>{const el=$(id);el.disabled=lk;if(document.activeElement!==el)el.value=usd(v);});}
   {const pa=$('o-pacv'),pt=$('o-ptcv'),lk=isLocked(r);
    pa.disabled=lk;pt.disabled=lk;
    /* Estos dos son inputs, pero se leen mucho mas de lo que se editan: fuera
