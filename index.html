@@ -794,6 +794,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             <div class="hsbox" id="lk-hubspotUrl"></div></div>
           <div class="row"><label>SharePoint <small>carpeta de documentación</small></label>
             <div class="hsbox" id="lk-sharepointUrl"></div></div>
+          <div class="row" id="rowOwner" style="display:none"><label>Propietario <small>quién ve y edita el PA</small></label>
+            <select class="f span" id="ownerSel"></select></div>
+          <div class="row" id="rowShared" style="display:none"><label>Compartido con <small>otros usuarios con acceso</small></label>
+            <div class="span" id="sharedBox" style="display:flex;flex-wrap:wrap;gap:4px 12px;padding:4px 0"></div></div>
 
         </div>
       </section>
@@ -1730,6 +1734,7 @@ const sd=iso=>{if(!iso)return'—';const[y,m,d]=iso.split('-');return LANG==='en
 const fdate=iso=>iso?new Date(pISO(iso).getTime()+12*3600*1000).toLocaleDateString(LOCALE[LANG],{day:'2-digit',month:'short',year:'numeric'}):'—';
 
 function fillForm(){
+  if(typeof renderOwner==='function')setTimeout(renderOwner,0);
   document.querySelectorAll('[data-k]').forEach(el=>{const k=el.dataset.k;if(el.type==='checkbox')el.checked=!!current[k];else el.value=current[k]??'';});
   LINK_FIELDS.forEach(f=>linkEdit[f.key]=false);renderLinks();
   renderCommRows();
@@ -2263,7 +2268,26 @@ function renderStatus(){
    Los registros sin creador (anteriores al campo) quedan solo para admins.
    Es un filtro de pantalla: la carpeta de SharePoint sigue siendo la misma. */
 const isAdmin=()=>!!me&&(APP_CONFIG.admins||[]).map(x=>x.toLowerCase()).includes(me.email);
-const canSee=r=>isAdmin()||(!!me&&!!r.createdBy&&r.createdBy.toLowerCase()===me.email);
+const canSee=r=>isAdmin()||(!!me&&((!!r.createdBy&&r.createdBy.toLowerCase()===me.email)||(r.sharedWith||[]).map(x=>String(x).toLowerCase()).includes(me.email)));
+/* Propietario y usuarios con acceso: solo los admins los cambian. La lista de
+   usuarios sale de COMM_CFG.people mas los admins y validadores. */
+function knownUsers(){const set=new Set([...(APP_CONFIG.admins||[]),...Object.keys(APP_CONFIG.validators||{}),...Object.keys(COMM_CFG.people||{})].map(x=>x.toLowerCase()));
+  if(current&&current.createdBy)set.add(current.createdBy.toLowerCase());(current&&current.sharedWith||[]).forEach(x=>set.add(String(x).toLowerCase()));return [...set].sort();}
+const userLabel=e=>(COMM_CFG.people&&COMM_CFG.people[e])||e.split('@')[0];
+function renderOwner(){
+  const r=current,adm=isAdmin();
+  $('rowOwner').style.display=adm?'':'none';$('rowShared').style.display=adm?'':'none';
+  if(!adm||!r)return;
+  const sel=$('ownerSel'),cur=(r.createdBy||'').toLowerCase();
+  sel.innerHTML='<option value="">—</option>'+knownUsers().map(e=>`<option value="${e}"${e===cur?' selected':''}>${userLabel(e)} · ${e}</option>`).join('');
+  if(!sel._b){sel._b=1;sel.addEventListener('change',()=>{current.createdBy=sel.value||null;scheduleSave();renderList();renderOwner();});}
+  const sh=(r.sharedWith||[]).map(x=>String(x).toLowerCase());
+  $('sharedBox').innerHTML=knownUsers().filter(e=>e!==cur).map(e=>`<label class="chk" style="font-size:12px"><input type="checkbox" data-share="${e}"${sh.includes(e)?' checked':''}> ${userLabel(e)}</label>`).join('');
+  $('sharedBox').querySelectorAll('input[data-share]').forEach(cb=>cb.addEventListener('change',()=>{
+    const set=new Set((current.sharedWith||[]).map(x=>String(x).toLowerCase()));
+    if(cb.checked)set.add(cb.dataset.share);else set.delete(cb.dataset.share);
+    current.sharedWith=[...set];scheduleSave();renderList();}));
+}
 function renderList(){
   const q=($('search').value||'').toLowerCase();
   const box=$('list');
@@ -2272,7 +2296,7 @@ function renderList(){
   box.innerHTML=rows.map(r=>{const o=calc(r);return `<div class="item ${current&&r.id===current.id?'active':''}" onclick="openPA('${r.id}')">
     <div class="id"><span>${r.id}</span><span class="pill ${r.status==='lost'?'lost':isLocked(r)?'ok':'draft'}">${r.status==='lost'?'LOST':r.status==='won'?'WON':r.status==='validated'?'OK':'draft'}</span></div>
     <div class="nm">${r.partner||t('(sin partner)')}${r.endCustomer?' · '+r.endCustomer:''}</div>
-    <div class="meta">${r.vendor||'—'} · ${r.country} · ${usd(o.partnerTCV)}${r.createdBy?' · '+r.createdBy.split('@')[0]:''}</div></div>`;}).join('');
+    <div class="meta">${r.vendor||'—'} · ${r.country} · ${usd(o.partnerTCV)}${r.createdBy?' · '+r.createdBy.split('@')[0]:''}${(r.sharedWith||[]).length?' · +'+r.sharedWith.length:''}</div></div>`;}).join('');
 }
 
 /* =========================================================
