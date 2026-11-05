@@ -2346,6 +2346,7 @@ function migrateGasBase(r){
      tasa por plazo del pais. */
   /* Brasil comisiona sobre destino: los borradores de BR pasan una sola vez. */
   if(!r._brDest){if(r.country==='BR'&&(!r.status||r.status==='draft'))r.commBase='dest';r._brDest=true;}
+  if(r._spreadFlat&&(!r.status||r.status==='draft')){delete r._spreadFlat;r.fxSpread=(COUNTRY[r.country]?.fxSpread||0)*100;}
   if(!r._spreadTerm){
     if(r.status&&r.status!=='draft')r._spreadFlat=true;
     else r.fxSpread=(COUNTRY[r.country]?.fxSpread||0)*100;
@@ -2629,7 +2630,10 @@ async function reopenPA(){
     if(!await ask(t('Revertir negocio ganado')+' · '+current.id,t('Vuelve a validado y las comisiones dejan de devengarse.')))return;
     current.status='validated';current.won=null;recalc();renderList();await saveNow();return;
   }
-  if(!await ask(t('Reabrir para edición')+' · '+current.id,t('Reabrir invalida la firma actual.')))return;current.status='draft';current.signature=null;selValidator=null;recalc();renderList();clearSig();await persist(current);toast(t('PA reabierto como borrador'));}
+  if(!await ask(t('Reabrir para edición')+' · '+current.id,t('Reabrir invalida la firma actual.')))return;current.status='draft';current.signature=null;selValidator=null;
+  /* Un PA reabierto se vuelve a cotizar con las reglas vigentes: deja el spread fijo anterior. */
+  if(current._spreadFlat){delete current._spreadFlat;current.fxSpread=(COUNTRY[current.country]?.fxSpread||0)*100;}
+  recalc();renderList();clearSig();await persist(current);toast(t('PA reabierto como borrador'));}
 
 
 
