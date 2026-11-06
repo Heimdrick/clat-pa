@@ -1555,7 +1555,7 @@ function calc(r){
   /* El spread FX es proteccion cambiaria sobre lo que se cobra: se aplica en
      la punta, sobre el valor final con impuestos (o sin ellos si no hay). */
   /* IPC (renovaciones): ajuste por inflacion sobre el precio al cliente antes
-     de impuestos. Por defecto 0. No entra en los GAS ni en las comisiones. */
+     de impuestos. Por defecto 0. Es margen del nodo destino: entra en comisiones y en el margen regional. */
   o.ipcRate=(+r.ipc||0)/100;
   o.ipcTCV=o.custPreTaxTCV*o.ipcRate; o.ipcACV=o.custPreTaxACV*o.ipcRate;
   o.taxableTCV=o.custPreTaxTCV+o.ipcTCV; o.taxableACV=o.custPreTaxACV+o.ipcACV;
@@ -1642,12 +1642,14 @@ function calc(r){
      de cifras al desplegar esto. */
   o.commBase=(r.commBase==='dest'||r.commBase==='regional')?r.commBase:'source';
   {const useS=o.commBase!=='dest',useD=o.commBase!=='source';
-   o.baseACV=(useS?o.sgACV:0)+(useD?o.dgACV:0);
-   o.baseTCV=(useS?o.sgTCV:0)+(useD?o.dgTCV:0);
+   /* El IPC es margen del nodo destino: entra en la base de comision cuando
+      la base incluye destino, y en el margen regional. */
+   o.baseACV=(useS?o.sgACV:0)+(useD?o.dgACV+o.ipcACV:0);
+   o.baseTCV=(useS?o.sgTCV:0)+(useD?o.dgTCV+o.ipcTCV:0);
    /* Reparto de la comision entre los dos nodos, proporcional a lo que cada
       uno aporta a la base. Con base 'source' da 1 y el Net Source Margin queda
       identico a como estaba. */
-   const bS=useS?o.sgACV:0,bD=useD?o.dgACV:0,bt=bS+bD;
+   const bS=useS?o.sgACV:0,bD=useD?o.dgACV+o.ipcACV:0,bt=bS+bD;
    o.commSrcShare=bt>0?bS/bt:(useS?1:0);}
   o.base=r.upfront==='Yes'?o.baseTCV:o.baseACV;
   /* El piso de 10% de margen en origen bloquea comisiones. Solo Fernando puede
@@ -1658,8 +1660,8 @@ function calc(r){
   /* El piso se mide sobre la misma base que se comisiona: margen origen sobre
      costo vendor, margen destino sobre costo destino, o los dos sobre el costo
      vendor cuando la base es regional. */
-  o.commMargin=(o.commBase==='dest')?((o.dgBaseACV+o.dgACV)?o.dgACV/(o.dgBaseACV+o.dgACV):0)
-    :(o.commBase==='regional')?((acv+o.sgACV+o.dgACV)?(o.sgACV+o.dgACV)/(acv+o.sgACV+o.dgACV):0)
+  o.commMargin=(o.commBase==='dest')?((o.dgBaseACV+o.dgACV+o.ipcACV)?(o.dgACV+o.ipcACV)/(o.dgBaseACV+o.dgACV+o.ipcACV):0)
+    :(o.commBase==='regional')?((acv+o.sgACV+o.dgACV+o.ipcACV)?(o.sgACV+o.dgACV+o.ipcACV)/(acv+o.sgACV+o.dgACV+o.ipcACV):0)
     :sg;
   /* Epsilon: un margen escrito exactamente en el minimo caia del lado malo por
      redondeo binario (0.1 sale 0.09999999999999998 al despejar el gross-up). */
@@ -1682,8 +1684,8 @@ function calc(r){
   o.commDstACV=o.commACV-o.commSrcACV;   o.commDstTCV=o.commTotal-o.commSrcTCV;
   o.nsACV=o.sgACV-o.commSrcACV;
   o.nsTCV=o.sgTCV-o.commSrcTCV;
-  o.nrACV=(o.sgACV+o.dgACV)-o.commACV;
-  o.nrTCV=(o.sgTCV+o.dgTCV)-o.commTotal;
+  o.nrACV=(o.sgACV+o.dgACV+o.ipcACV)-o.commACV;
+  o.nrTCV=(o.sgTCV+o.dgTCV+o.ipcTCV)-o.commTotal;
   /* Cada nodo se mide sobre su propio precio de venta, con MDF y finders
      dentro de la base del nodo que los asume: el % configurado se lee exacto
      (menos comisiones). Precio origen = costo del nodo + Source GAS. */
@@ -1691,7 +1693,7 @@ function calc(r){
   /* Bases del cuadro de margenes: origen sobre el CLAT Destination Cost,
      regional sobre el precio del nodo destino (Destination Cost + Dest GAS):
      sin routing, spread, comision al canal ni impuestos. Asi un Dest GAS de 10% se lee 10% menos comisiones. */
-  {const nA=o.dgBaseACV+o.dgACV,nT=o.dgBaseTCV+o.dgTCV;o.nrACVp=nA?o.nrACV/nA:0;o.nrTCVp=nT?o.nrTCV/nT:0;}
+  {const nA=o.dgBaseACV+o.dgACV+o.ipcACV,nT=o.dgBaseTCV+o.dgTCV+o.ipcTCV;o.nrACVp=nA?o.nrACV/nA:0;o.nrTCVp=nT?o.nrTCV/nT:0;}
   // fechas
   o.valid=addDays(r.fxDate,15);
   // El periodo del contrato lo definen las lineas del deal. Solo si no hay lineas
