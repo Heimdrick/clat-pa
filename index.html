@@ -1090,6 +1090,10 @@ function rateOf(r,x){const v=r?r[x.k+'Rate']:null;
 function isRateOverridden(r,x){const v=r?r[x.k+'Rate']:null;
   return !(v===''||v==null||isNaN(+v))&&Math.abs(Math.max(0,+v)/100-x.rate)>1e-9;}
 const fmtRate=v=>String(Math.round(v*1e4)/1e4);
+/* Los porcentajes despejados se guardan con 10 decimales para que el precio
+   que los origino se reproduzca al centavo; la pantalla los muestra con 4. */
+const exactPct=v=>+(+v).toFixed(10);
+const showPct=v=>(v===''||v==null||isNaN(+v))?(v??''):String(Math.round(+v*1e6)/1e6);
 /* El unitario puede no caer en 2 decimales. Se muestran hasta 6, sin ceros
    sobrantes, para que unitario x cantidad reproduzca el total exacto. */
 const fmtUnit=v=>{const n=+v||0;const s=n.toFixed(6).replace(/0+$/,'');
@@ -1745,7 +1749,7 @@ const fdate=iso=>iso?new Date(pISO(iso).getTime()+12*3600*1000).toLocaleDateStri
 
 function fillForm(){
   if(typeof renderOwner==='function')setTimeout(renderOwner,0);
-  document.querySelectorAll('[data-k]').forEach(el=>{const k=el.dataset.k;if(el.type==='checkbox')el.checked=!!current[k];else el.value=current[k]??'';});
+  document.querySelectorAll('[data-k]').forEach(el=>{const k=el.dataset.k;if(el.type==='checkbox')el.checked=!!current[k];else el.value=(el.classList.contains('pct')&&el.type==='number')?showPct(current[k]):(current[k]??'');});
   LINK_FIELDS.forEach(f=>linkEdit[f.key]=false);renderLinks();
   renderCommRows();
   bindPartnerSolve();bindAmountSolve();bindDestCostSolve();wrapPct();
@@ -1792,8 +1796,8 @@ function togglePin(){
   const o=calc(r);
   if(o.pinned||r.targetTCV!==''&&r.targetTCV!=null){
     // Al liberar, el Dest GAS conserva el porcentaje al que se habia despejado.
-    if(o.pinAt==='source')r.sourceGas=+fmtRate(o.srcGasEff);
-    else r.destGas=+fmtRate(o.destGasEff);
+    if(o.pinAt==='source')r.sourceGas=exactPct(o.srcGasEff);
+    else r.destGas=exactPct(o.destGasEff);
     r.targetTCV='';
   }else{
     r.targetTCV=+o.partnerTCV.toFixed(2);
@@ -1813,7 +1817,7 @@ function solveAmount(field,base,raw,grossUp){
   const n=+String(raw).replace(/[$,\s]/g,'');
   if(!isFinite(n)||n<0)return;
   if(!(base>0)){toast(t('No hay base para despejar el porcentaje'));return;}
-  r[field]=+((grossUp?n/(base+n):n/base)*100).toFixed(6);
+  r[field]=exactPct((grossUp?n/(base+n):n/base)*100);
   /* Los inputs con data-k solo se rellenan en fillForm, no en cada recalculo,
      asi que hay que escribir el porcentaje a mano o el campo queda mostrando
      el valor anterior aunque el dato ya cambio. */
@@ -1843,8 +1847,8 @@ function solveDestCost(raw,isTCV){
   if(isTCV)n=n/(o.term||1);
   if(!(o.srcCostACV>0)){toast(t('No hay base para despejar el porcentaje'));return;}
   if(n<o.srcCostACV-1e-9){toast(t('El costo destino no puede ser menor que el costo origen'));return;}
-  r.sourceGas=+((1-o.srcCostACV/n)*100).toFixed(6);
-  const pe=document.querySelector('[data-k="sourceGas"]');if(pe&&document.activeElement!==pe)pe.value=r.sourceGas;
+  r.sourceGas=exactPct((1-o.srcCostACV/n)*100);
+  const pe=document.querySelector('[data-k="sourceGas"]');if(pe&&document.activeElement!==pe)pe.value=showPct(r.sourceGas);
   recalc();scheduleSave();renderList();
 }
 let destCostBound=false;
@@ -2762,11 +2766,11 @@ window.addEventListener('error',e=>{const b=document.createElement('div');b.styl
    el.addEventListener('focus',()=>{el.value=el.value.replace(/[$,\s]/g,'');el.select();});
    el.addEventListener('change',()=>{if(!current||isLocked(current))return;const n=+String(el.value).replace(/[$,\s]/g,'');if(!isFinite(n)||n<0)return;
      const o=calc(current);if(!(o.subTCV>0)){toast(t('No hay base para despejar el porcentaje'));return;}
-     const b=o.fxBlocks||1;current.fxSpread=+((n/o.subTCV/b)*100).toFixed(6);recalc();scheduleSave();renderList();});
+     const b=o.fxBlocks||1;current.fxSpread=exactPct((n/o.subTCV/b)*100);recalc();scheduleSave();renderList();});
    el.addEventListener('blur',()=>recalc(true));
    el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el.blur();}});}
   $('spTotIn').addEventListener('input',e=>{if(!current)return;const v=e.target.value===''?0:Math.max(0,+e.target.value||0);
-    const b=calc(current).fxBlocks||1;current.fxSpread=+(v/b).toFixed(6);recalc();scheduleSave();renderList();});
+    const b=calc(current).fxBlocks||1;current.fxSpread=exactPct(v/b);recalc();scheduleSave();renderList();});
   if(!await signIn())return;
   await loadAll();
   try{const l=localStorage.getItem('pa_lang');if(l&&(I18N[l]||l==='es'))LANG=l;}catch(e){}
