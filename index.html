@@ -1075,7 +1075,8 @@ const ROLES=[
   {k:'headChannel',label:'Head of Channel',rate:0.05},
   {k:'pm',label:'Product Manager',rate:0.05},
   {k:'cm',label:'Channel Manager',rate:0.05},
-  {k:'se',label:'Sales Engineer',rate:0.03}
+  {k:'se',label:'Sales Engineer',rate:0.03},
+  {k:'renewals',label:'Renewals',rate:0.03,off:true}   // apagado por defecto: se marca en el PA cuando aplica
 ];
 /* Tasa efectiva de comision por rol. r[<rol>Rate] guarda un override en % (5, 3.5...).
    Vacio/ausente => tasa estandar del rol. Solo fernando@connect.lat puede editarlo. */
@@ -1193,7 +1194,7 @@ pt:{
 'costo fabricante → precio partner':'custo fabricante → preço parceiro','define la base de comisión':'define a base da comissão','días':'dias','el Vendor ACV se calcula desde las líneas cuando existen':'o Vendor ACV é calculado a partir das linhas quando existem',
 'mínimo 15% · margen en origen':'mínimo 15% · margem na origem','neto de comisiones':'líquido de comissões','pendiente de firma':'pendente de assinatura',
 'sin impuesto · referencia interna':'sem impostos · referência interna','sobre GAS origen + destino TCV':'sobre GAS origem + destino TCV','🇧🇷 Brasil':'🇧🇷 Brasil','🇺🇸 Estados Unidos':'🇺🇸 Estados Unidos','🇵🇪 Perú':'🇵🇪 Peru',
-'Head of LATAM':'Head of LATAM','Head of Channel':'Head of Channel','Product Manager':'Product Manager','Channel Manager':'Channel Manager','Sales Engineer':'Sales Engineer',
+'Head of LATAM':'Head of LATAM','Head of Channel':'Head of Channel','Product Manager':'Product Manager','Channel Manager':'Channel Manager','Sales Engineer':'Sales Engineer','Renewals':'Renewals',
 'Total comisiones':'Total comissões','de base':'da base','año(s)':'ano(s)','sobre Partner TCV':'sobre Partner TCV','no elegible (<10%)':'não elegível (<10%)','sin conversión':'sem conversão',
 'impuesto incluido':'impostos inclusos','impuesto':'imposto','Source GAS':'Source GAS','MDF + finders':'MDF + finders','Dest. GAS':'Dest. GAS','del margen origen · base':'da margem origem · base',
 'Sin líneas: el Vendor ACV se toma del campo manual.':'Sem linhas: o Vendor ACV vem do campo manual.','línea(s) · Vendor ACV desde líneas':'linha(s) · Vendor ACV das linhas','factor':'fator','markup':'markup','Total':'Total',
@@ -1236,7 +1237,7 @@ en:{
 'costo fabricante → precio partner':'vendor cost → partner price','define la base de comisión':'sets the commission base','días':'days','el Vendor ACV se calcula desde las líneas cuando existen':'Vendor ACV is computed from lines when present',
 'mínimo 15% · margen en origen':'minimum 15% · source margin','neto de comisiones':'net of commissions','pendiente de firma':'pending signature',
 'sin impuesto · referencia interna':'pre-tax · internal reference','sobre GAS origen + destino TCV':'on source + destination GAS TCV','🇧🇷 Brasil':'🇧🇷 Brazil','🇺🇸 Estados Unidos':'🇺🇸 United States','🇵🇪 Perú':'🇵🇪 Peru',
-'Head of LATAM':'Head of LATAM','Head of Channel':'Head of Channel','Product Manager':'Product Manager','Channel Manager':'Channel Manager','Sales Engineer':'Sales Engineer',
+'Head of LATAM':'Head of LATAM','Head of Channel':'Head of Channel','Product Manager':'Product Manager','Channel Manager':'Channel Manager','Sales Engineer':'Sales Engineer','Renewals':'Renewals',
 'Total comisiones':'Total commissions','de base':'of base','año(s)':'year(s)','sobre Partner TCV':'of Partner TCV','no elegible (<10%)':'not eligible (<10%)','sin conversión':'no conversion',
 'impuesto incluido':'tax included','impuesto':'tax','Source GAS':'Source GAS','MDF + finders':'MDF + finders','Dest. GAS':'Dest. GAS','del margen origen · base':'of source margin · base',
 'Sin líneas: el Vendor ACV se toma del campo manual.':'No lines: Vendor ACV is taken from the manual field.','línea(s) · Vendor ACV desde líneas':'line(s) · Vendor ACV from lines','factor':'factor','markup':'markup','Total':'Total',
@@ -1279,7 +1280,7 @@ function blank(country='US'){
     fxOn:true,
     startDate:todayISO(),endDate:'',invoiceDate:'',payDate:'',payTerms:30,
     notes:'',hubspotUrl:'',sharepointUrl:'',lines:[]};
-  ROLES.forEach(x=>r[x.k]=true);
+  ROLES.forEach(x=>r[x.k]=!x.off);
   return r;
 }
 async function storageList(){
