@@ -1848,17 +1848,27 @@ function togglePin(){
      MDF        = vendor TCV x %   ->  % = monto / vendor TCV                */
 /* grossUp: el porcentaje es margen sobre el precio del nodo (base + monto), no
    sobre el costo. Aplica a los GAS. */
-function solveAmount(field,base,raw,grossUp){
+function solveAmount(field,baseOf,raw,grossUp){
   const r=current;if(isLocked(r))return;
   const n=+String(raw).replace(/[$,\s]/g,'');
   if(!isFinite(n)||n<0)return;
+  let base=baseOf(calc(r));
   if(!(base>0)){toast(t('No hay base para despejar el porcentaje'));return;}
-  r[field]=exactPct((grossUp?n/(base+n):n/base)*100);
+  /* Con el precio fijado, la base del porcentaje puede depender del propio
+     porcentaje (el GAS despejado mueve el costo destino, y el MDF se mide
+     sobre ese costo). Se itera hasta que el monto final coincida con el
+     escrito; sin precio fijado converge en la primera vuelta. */
+  for(let i=0;i<40;i++){
+    const v=exactPct((grossUp?n/(base+n):n/base)*100);
+    if(r[field]===v)break;
+    r[field]=v;
+    const nb=baseOf(calc(r));if(!(nb>0)||Math.abs(nb-base)<1e-7)break;base=nb;
+  }
   /* Los inputs con data-k solo se rellenan en fillForm, no en cada recalculo,
      asi que hay que escribir el porcentaje a mano o el campo queda mostrando
      el valor anterior aunque el dato ya cambio. */
   const pe=document.querySelector(`[data-k="${field}"]`);
-  if(pe&&document.activeElement!==pe)pe.value=r[field];
+  if(pe&&document.activeElement!==pe)pe.value=showPct(r[field]);
   recalc();scheduleSave();renderList();
 }
 let amountSolveBound=false;
@@ -1869,7 +1879,7 @@ function bindAmountSolve(){
    ['o-chan','channelPct',o=>o.custPreTaxACV],['o-ipc','ipc',o=>o.custPreTaxACV]].forEach(([id,field,baseOf,gu])=>{
     const el=$(id);if(!el)return;
     el.addEventListener('focus',()=>{el.value=el.value.replace(/[$,\s]/g,'');el.select();});
-    el.addEventListener('change',()=>solveAmount(field,baseOf(calc(current)),el.value,!!gu));
+    el.addEventListener('change',()=>solveAmount(field,baseOf,el.value,!!gu));
     el.addEventListener('blur',()=>recalc(true));
     el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el.blur();}});
   });
