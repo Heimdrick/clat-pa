@@ -2102,7 +2102,7 @@ function recalc(skipLineInputs){
   set('o-shiploc',cur==='USD'?'—':loc(o.shipLocTax,cur));
   set('o-fxeff',o.fxEff.toFixed(4));set('o-valid',fdate(o.valid));set('o-ploc',cur==='USD'?'—':loc(o.pLoc,cur));set('o-ltax',cur==='USD'?'—':loc(o.lTax,cur));set('o-ploctax',cur==='USD'?usd(o.partnerTCV):loc(o.pLocTax,cur));
   $('endHint').textContent=r.endDate?t('manual'):(o.fromLines?t('desde las líneas del deal'):t('calculado: inicio + term'));
-  $('invHint').textContent=r.invoiceDate?t('manual'):t('vacío = inicio del contrato');
+  $('invHint').textContent=r.invoiceDate?(o.fromLines?t('desde las líneas del deal'):t('manual')):t('vacío = inicio del contrato');
   $('payHint').textContent=r.payDate?t('manual'):t('vacío = facturación + plazo');
   {const setDays=(id,v)=>{const el=$(id);el.textContent=v==null?'—':(v+' '+t('días'));
      el.style.color=(v!=null&&v<0)?'var(--red)':'';};
@@ -2226,7 +2226,7 @@ function renderLines(o,cur,skip,locCur){
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function addLine(){if(isLocked(current))return;const o=calc(current);(current.lines=current.lines||[]).push({sku:'',desc:'',qty:1,cost:0,start:current.startDate||'',end:o.end||''});recalc();scheduleSave();renderList();}
 function addShippingLine(){if(isLocked(current))return;if((current.lines||[]).some(l=>l.kind==='shipping'))return;(current.lines=current.lines||[]).push({kind:'shipping',sku:'SHIPPING',desc:t('Hardware / shipping'),qty:1,cost:+current.shipSrc||0,start:'',end:''});recalc();scheduleSave();renderList();toast(t('Shipping agregado como línea'));}
-function delLine(i){current.lines.splice(i,1);recalc();scheduleSave();renderList();}
+function delLine(i){current.lines.splice(i,1);syncDatesFromLines();recalc();scheduleSave();renderList();}
 /* Despeje inverso: dado un precio partner objetivo, que margen de destino hace
    falta. El costo vendor y el routing quedan fijos — el costo no se negocia y
    el routing es costo de remesa — y el Dest GAS absorbe la diferencia, que es
@@ -2273,6 +2273,20 @@ function solvePartner(target,isACV){
   r.targetTCV=+targetTCV.toFixed(2);
   recalc();scheduleSave();renderList();
 }
+/* Las fechas de las lineas alimentan la seccion de fechas: inicio = primer
+   start, fin = ultimo end, facturacion = inicio, plazo 30 dias si no hay uno.
+   Sin fechas en las lineas no se toca nada y queda en manual. */
+function syncDatesFromLines(){
+  const r=current;if(!r||isLocked(r))return;
+  const rec=(r.lines||[]).filter(l=>l.kind!=='shipping');
+  const ds=rec.map(l=>l.start).filter(Boolean).sort(),de=rec.map(l=>l.end).filter(Boolean).sort();
+  if(!ds.length)return;
+  r.startDate=ds[0];r.invoiceDate=ds[0];
+  if(de.length)r.endDate=de[de.length-1];
+  if(!(+r.payTerms>0))r.payTerms=30;
+  r.payDate='';
+  ['startDate','endDate','invoiceDate','payDate','payTerms'].forEach(k=>{const el=document.querySelector(`[data-k="${k}"]`);if(el&&el!==document.activeElement)el.value=r[k]??'';});
+}
 function setLine(i,k,v){
   const l=current.lines[i];
   if(k==='acvTotal'||k==='tcvTotal'){
@@ -2286,6 +2300,7 @@ function setLine(i,k,v){
     }
   }else{
     l[k]=(k==='qty'||k==='cost')?(v===''?'':+v):v;
+    if(k==='start'||k==='end')syncDatesFromLines();
   }
   // Refresca las celdas calculadas sin re-renderizar los inputs, para no
   // perder el foco mientras se tipea. La celda que se esta editando se omite.
