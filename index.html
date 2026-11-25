@@ -861,7 +861,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <div class="row" id="rowInclTaxT" style="display:none"><label>Impuestos sobre facturación TCV</label><div class="pct"></div><div class="val" id="o-incltaxt"></div></div>
           <div class="row" id="rowSub" style="display:none"><label>Valor antes del spread FX <small id="subHint"></small></label><div class="pct"></div><div class="val strong" id="o-sub"></div></div>
           <div class="row" id="rowSpUsd"><label>Spread FX por 30 días <small id="fxSpreadHint3"></small></label><input class="f pct" type="number" step="0.01" min="0" id="spTotIn" title="Total calculado · al escribirlo se despeja la tasa por 30 días"><input class="f num val" id="o-spusd" inputmode="decimal" title="Escriba el monto y la tasa por 30 días se despeja"></div>
-          <div class="row" id="rowMkFin" style="display:none"><label>Markup precio final <small id="mkFinHint"></small><small id="mkCapNote" style="display:none;color:#C0392B;font-weight:600"></small></label><div class="pct" style="display:flex;gap:6px;width:auto;justify-self:end"><input class="f pct" type="number" step="0.01" min="0" data-k="mkTax" placeholder="imp. %" title="Impuesto local % (manual)" style="width:72px"><input class="f pct" type="number" step="0.01" min="0" data-k="mkSpread" placeholder="spread %" title="Spread FX % (manual)" style="width:72px"></div><div class="val" id="o-mkfin"></div></div>
+          <div class="row" id="rowMkFin" style="display:none"><label>Markup precio final <small id="mkFinHint"></small><small id="mkCapNote" style="display:none;color:#C0392B;font-weight:600"></small></label><div class="pct" id="o-mkfinf"></div><div class="val" id="o-mkfin"></div></div>
           <div class="row total"><label>Partner ACV</label><div class="pct"></div><input class="f num val" id="o-pacv" inputmode="decimal" title="Fijar el precio partner y despejar el margen de destino"></div>
           <div class="row total"><label>Partner TCV <small id="pinHint"></small></label><div class="pct" style="display:flex;gap:4px;align-items:center;justify-content:flex-end"><select class="f no-print" id="pinAt" style="width:auto;font-size:11px;padding:3px 4px"><option value="dest">Dest GAS</option><option value="source">Source GAS</option><option value="cost">Vendor ACV</option></select><button class="btn sm no-print" id="btnPin" onclick="togglePin()"></button></div><input class="f num val" id="o-ptcv" inputmode="decimal" title="Fijar el precio partner y despejar el margen de destino"></div>
 
@@ -1609,10 +1609,8 @@ function calc(r){
      Se mide contra custPreTax, que es el nivel sobre el que cae el impuesto y
      coincide con preTax cuando no hay comision al canal. */
   o.mkBase=o.taxableTCV; o.mkPre=o.vendorTCV?o.mkBase/o.vendorTCV:0;
-  /* Markup precio final: simulacion manual. Impuesto y spread se escriben en
-     la propia fila (vacio = 0) y no salen de la cascada del PA. */
-  o.mkTax=(+r.mkTax||0)/100; o.mkSp=(+r.mkSpread||0)/100;
-  o.mkFinBase=o.mkBase*(1+o.mkTax)*(1+o.mkSp); o.mkFin=o.vendorTCV?o.mkFinBase/o.vendorTCV:0;
+  /* Markup precio final: precio con impuestos locales y spread FX del PA. */
+  o.mkFinBase=o.partnerTCV; o.mkFin=o.vendorTCV?o.mkFinBase/o.vendorTCV:0;
 
   // shipping (precio de venta del shipping, redondeado a 2 decimales)
   // Los tres factores del shipping heredan del detalle de rentabilidad mientras
@@ -1668,10 +1666,8 @@ function calc(r){
         contable, que es lo que hacia antes. */
      o.dgTCV=o.preTaxTCV-o.arTCV-o.mdf; o.dgACV=o.preTaxACV-o.arACV-o.mdfACV;
      o.mkBase=o.taxableTCV; o.mkPre=o.vendorTCV?o.mkBase/o.vendorTCV:0;
-  /* Markup precio final: simulacion manual. Impuesto y spread se escriben en
-     la propia fila (vacio = 0) y no salen de la cascada del PA. */
-  o.mkTax=(+r.mkTax||0)/100; o.mkSp=(+r.mkSpread||0)/100;
-  o.mkFinBase=o.mkBase*(1+o.mkTax)*(1+o.mkSp); o.mkFin=o.vendorTCV?o.mkFinBase/o.vendorTCV:0;
+  /* Markup precio final: precio con impuestos locales y spread FX del PA. */
+  o.mkFinBase=o.partnerTCV; o.mkFin=o.vendorTCV?o.mkFinBase/o.vendorTCV:0;
    }}
   o.markupEff=acv?o.partnerACV/acv:0;
 
@@ -2165,12 +2161,12 @@ function recalc(skipLineInputs){
      /* Markup precio final: con impuestos locales y spread FX. El tope por
         vendor/pais se mide sobre este. */
      $('rowMkFin').style.display='';
-     $('o-mkfin').textContent=pct(o.mkFin-1);
-     $('mkFinHint').textContent=t('impuesto local y spread manuales')+' · '+usd(o.vendorTCV)+' → '+usd(o.mkFinBase);
+     $('o-mkfinf').textContent='×'+o.mkFin.toFixed(4);$('o-mkfin').textContent=pct(o.mkFin-1);
+     $('mkFinHint').textContent=(o.hasIncl?t('impuestos')+' '+(o.inclTaxRate*100).toFixed(2)+'% + ':'')+t('spread')+' '+(o.spUsd*100).toFixed(2)+'% · '+usd(o.vendorTCV)+' → '+usd(o.partnerTCV);
      const cap=markupCap(r),over=cap!=null&&(o.mkFin-1)>cap+1e-9;
      $('mkCapNote').style.display=cap!=null?'':'none';
      $('mkCapNote').textContent=cap!=null?(over?t('supera el tope de')+' '+(cap*100).toFixed(0)+'% '+t('para')+' '+r.vendor+' · '+COUNTRY[r.country].name:t('tope')+' '+(cap*100).toFixed(0)+'% '+t('para')+' '+r.vendor+' · '+COUNTRY[r.country].name):'';
-     $('o-mkfin').style.color=over?'#C0392B':'';}
+     $('o-mkfin').style.color=over?'#C0392B':'';$('o-mkfinf').style.color=over?'#C0392B':'';}
    else $('rowMkFin').style.display='none';}
   $('rowInclTax2').style.display='';
   $('rowPreTaxA').style.display=$('rowPreTaxT').style.display=o.hasIncl?'':'none';
@@ -2551,7 +2547,7 @@ function buildPDF(){
     .concat(Math.abs(o.ipcTCV||0)>0.005?[[t('IPC · ajuste por inflación'),t('sobre el precio al cliente antes de impuestos'),U(o.ipcACV),(+r.ipc||0).toFixed(2)+'%'],[t('IPC TCV'),'',U(o.ipcTCV)]]:[])
     .concat(o.hasIncl?[[t('Impuestos sobre facturación'),t('incluidos en el precio final'),U(o.inclTaxACV),(o.inclTaxRate*100).toFixed(2)+'%'],[t('Impuestos sobre facturación TCV'),'',U(o.inclTax)]]:[])
     .concat(o.spTCV>0.005?[[t('Valor antes del spread FX'),t(o.hasIncl?'TCV · impuestos incluidos':'TCV · sin impuestos'),U(o.subTCV)],[t('Spread FX por 30 días'),`${o.fxBlocks} × ${+(o.fxRate*100).toFixed(2)}% · ${t('sobre el valor final')}`,U(o.spTCV),(o.spUsd*100).toFixed(2)+'%']]:[])
-    .concat(o.vendorTCV>0?[[t('Markup precio final'),t('impuesto')+' '+(+r.mkTax||0).toFixed(2)+'% + '+t('spread')+' '+(+r.mkSpread||0).toFixed(2)+'% · '+U(o.vendorTCV)+' → '+U(o.mkFinBase),'×'+o.mkFin.toFixed(4),P(o.mkFin-1)]]:[]).concat([[o.hasIncl?t('Partner ACV · impuestos incluidos'):'Partner ACV','',U(o.partnerACV),'','total'],[o.hasIncl?t('Partner TCV · impuestos incluidos'):'Partner TCV','',U(o.partnerTCV),'','total']]));
+    .concat(o.vendorTCV>0?[[t('Markup precio final'),(o.hasIncl?t('impuestos')+' '+(o.inclTaxRate*100).toFixed(2)+'% + ':'')+t('spread')+' '+(o.spUsd*100).toFixed(2)+'% · '+U(o.vendorTCV)+' → '+U(o.partnerTCV),'×'+o.mkFin.toFixed(4),P(o.mkFin-1)]]:[]).concat([[o.hasIncl?t('Partner ACV · impuestos incluidos'):'Partner ACV','',U(o.partnerACV),'','total'],[o.hasIncl?t('Partner TCV · impuestos incluidos'):'Partner TCV','',U(o.partnerTCV),'','total']]));
   /* Enlaces al deal en HubSpot y a la carpeta de SharePoint. Van como
      anotaciones clicables del PDF, no como texto plano: la URL completa es
      larga y no aporta nada impresa. Se omite la fila si no hay ninguno. */
